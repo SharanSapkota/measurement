@@ -6,7 +6,6 @@ import secrets
 from functools import wraps
 
 from flask import Flask, Response, request
-from flask_caching import Cache
 from flask_restful import Api, Resource
 from flask_sqlalchemy import SQLAlchemy
 from jsonschema import ValidationError, draft7_format_checker, validate
@@ -14,15 +13,12 @@ from sqlalchemy.exc import IntegrityError
 from werkzeug.exceptions import BadRequest, Conflict, Forbidden, NotFound, UnsupportedMediaType
 from werkzeug.routing import BaseConverter
 
-
 app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "sqlite:///sensorhub.db")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-app.config["CACHE_TYPE"] = "SimpleCache"
 
 db = SQLAlchemy(app)
 api = Api(app)
-cache = Cache(app)
 
 
 class Sensor(db.Model):
@@ -61,12 +57,10 @@ class Sensor(db.Model):
         }
         props = schema["properties"] = {}
         props["name"] = {
-            "type": "string",
-            "description": "Unique sensor name"
+            "type": "string"
         }
         props["model"] = {
-            "type": "string",
-            "description": "Sensor model"
+            "type": "string"
         }
         return schema
 
@@ -168,7 +162,7 @@ def require_sensor_key(func):
 class SensorCollection(Resource):
     @require_admin
     def get(self):
-        sensors = Sensor.query.all()
+        sensors = Sensor.query.order_by(Sensor.name).all()
         return [sensor.serialize() for sensor in sensors]
 
     @require_admin
@@ -237,11 +231,10 @@ class SensorItem(Resource):
 class MeasurementCollection(Resource):
     @require_admin
     def get(self, sensor):
-        body = {
+        return {
             "sensor": sensor.name,
             "measurements": [m.serialize() for m in sensor.measurements]
         }
-        return body
 
     @require_sensor_key
     def post(self, sensor):
@@ -298,12 +291,7 @@ api.add_resource(MeasurementCollection, "/api/sensors/<sensor:sensor>/measuremen
 api.add_resource(MeasurementItem, "/api/sensors/<sensor:sensor>/measurements/<int:measurement>/")
 
 
-def db_init():
-    db.create_all()
-
-    if Sensor.query.first() is not None:
-        return
-
+def seed_database():
     for i in range(1, 4):
         sensor = Sensor(
             name=f"test-sensor-{i}",
@@ -338,16 +326,21 @@ def home():
     return {"message": "Sensorhub API is running"}
 
 
-@app.route("/init-db")
-def init_db_route():
+@app.route("/reset-db")
+def reset_db():
+    db.drop_all()
     db.create_all()
-    db_init()
-    return {"message": "database initialized"}
+    seed_database()
+    return {"message": "database reset and initialized"}
 
 
 @app.route("/generate-master-key")
-def generate_master_key_route():
+def generate_master_key():
     db.create_all()
+    existing_admin = ApiKey.query.filter_by(admin=True).first()
+    if existing_admin is not None:
+        return {"message": "admin key already exists, generate on a fresh reset if needed"}, 200
+
     token = secrets.token_urlsafe(32)
     db_key = ApiKey(
         key=ApiKey.key_hash(token),
