@@ -165,6 +165,7 @@ def require_sensor_key(func):
 
 
 class SensorCollection(Resource):
+    @require_admin
     def get(self):
         sensors = Sensor.query.all()
         return [sensor.serialize() for sensor in sensors]
@@ -198,6 +199,7 @@ class SensorCollection(Resource):
 
 
 class SensorItem(Resource):
+    @require_admin
     def get(self, sensor):
         return sensor.serialize()
 
@@ -232,6 +234,7 @@ class SensorItem(Resource):
 
 
 class MeasurementCollection(Resource):
+    @require_admin
     def get(self, sensor):
         body = {
             "sensor": sensor.name,
@@ -325,8 +328,6 @@ def db_init():
             )
             now += interval
             sensor.measurements.append(meas)
-
-        print(f"Sensor key for {sensor.name}: {sensor_token}")
 
     db.session.commit()
 
