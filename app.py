@@ -45,7 +45,8 @@ class Sensor(db.Model):
     def serialize(self):
         return {
             "name": self.name,
-            "model": self.model
+            "model": self.model,
+            "location": None
         }
 
     def deserialize(self, doc):
@@ -303,10 +304,10 @@ def db_init():
     if Sensor.query.first() is not None:
         return
 
-    for idx, letter in enumerate("ABC", start=1):
+    for i in range(1, 4):
         sensor = Sensor(
-            name=f"sensor-{letter}",
-            model="test-sensor"
+            name=f"test-sensor-{i}",
+            model="testsensor"
         )
         db.session.add(sensor)
         db.session.flush()
