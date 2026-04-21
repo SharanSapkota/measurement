@@ -1,6 +1,5 @@
 import datetime
 import hashlib
-import json
 import os
 import random
 import secrets
@@ -298,6 +297,9 @@ api.add_resource(MeasurementItem, "/api/sensors/<sensor:sensor>/measurements/<in
 def db_init():
     db.create_all()
 
+    if Sensor.query.first() is not None:
+        return
+
     for idx, letter in enumerate("ABC", start=1):
         sensor = Sensor(
             name=f"sensor-{letter}",
@@ -329,7 +331,21 @@ def db_init():
     db.session.commit()
 
 
-def create_master_key():
+@app.route("/")
+def home():
+    return {"message": "Sensorhub API is running"}
+
+
+@app.route("/init-db")
+def init_db_route():
+    db.create_all()
+    db_init()
+    return {"message": "database initialized"}
+
+
+@app.route("/generate-master-key")
+def generate_master_key_route():
+    db.create_all()
     token = secrets.token_urlsafe(32)
     db_key = ApiKey(
         key=ApiKey.key_hash(token),
@@ -337,16 +353,10 @@ def create_master_key():
     )
     db.session.add(db_key)
     db.session.commit()
-    print("MASTER KEY:", token)
+    return {"apikey": token}
 
 
 if __name__ == "__main__":
     with app.app_context():
-        if os.environ.get("INIT_DB") == "1":
-            db_init()
-        elif os.environ.get("CREATE_MASTER_KEY") == "1":
-            create_master_key()
-        else:
-            db.create_all()
-
+        db.create_all()
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
